@@ -34,6 +34,10 @@ object Global extends play.api.GlobalSettings {
     override lazy val routes = new AuthRoutesService()
     override lazy val userService: InMemoryPlayerService = new InMemoryPlayerService()
     override lazy val eventListeners = List(new AuthEventListener())
+    
+    override lazy val providers = ListMap(
+      include(new TwitterPlayerProvider(routes, cacheService, oauth1ClientFor(TwitterPlayerProvider.Twitter)))
+    )
   }
 
   /**

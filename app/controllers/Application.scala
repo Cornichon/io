@@ -8,11 +8,10 @@ import models.Player
 
 class Application(override implicit val env: RuntimeEnvironment[Player]) extends SecureSocial[Player] {
 
-  def index = Action.async { implicit request =>
-    SecureSocial.currentUser[Player].map { maybeUser =>
-      val userId = maybeUser.map(_.main.userId).getOrElse("unknown")
-      Ok(s"UserID: $userId - User: $maybeUser")
-//      Ok(s"Your id is $userId")
+  def index = UserAwareAction { implicit request =>
+    request.user map(_.main.userId) match {
+      case None => Ok("No ID")
+      case Some(id: String) => Ok(s"Your ID is $id")   
     }
   }
 

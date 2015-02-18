@@ -20,6 +20,7 @@
 package services
 
 import anorm._
+import anorm.SqlParser._
 import play.api.Logger
 import securesocial.core._
 import securesocial.core.providers.{ UsernamePasswordProvider, MailToken }
@@ -27,6 +28,8 @@ import scala.concurrent.Future
 import securesocial.core.services.{ UserService, SaveMode }
 import models.Player
 import play.api.db.DB
+import play.api.Play.current
+import securesocial.core.providers.TwitterPlayerProvider
 
 /**
  * A Sample In Memory user service in Scala
@@ -35,77 +38,93 @@ import play.api.db.DB
  * it stores everything in memory.
  */
 class InMemoryPlayerService extends UserService[Player] {
-  val logger = Logger("application.controllers.InMemoryPlayerService")
 
-  var users = Map[(String, String), Player]()
+  // Parse a SQL output into a BasicProfile
+  val parser = {
+    get[String]("id") ~
+    get[String]("name") ~
+    get[String]("image_url") map {
+      case id~name~imageUrl => 
+        BasicProfile(TwitterPlayerProvider.Twitter, id, None, None, Some(name), None, Some(imageUrl), AuthenticationMethod("oauth1"), None)
+    }
+  }
 
   def find(providerId: String, userId: String): Future[Option[BasicProfile]] = {
-    if (logger.isDebugEnabled) {
-      logger.debug("users = %s".format(users))
+    DB.withConnection { implicit connection =>
+	  var basicProfile = SQL("SELECT * FROM player p WHERE p.id = {id};").on("id" -> userId).as(parser.singleOpt)
+	  Future.successful(basicProfile)
     }
-    val result = for (
-      user <- users.values;
-      basicProfile <- user.identities.find(su => su.providerId == providerId && su.userId == userId)
-    ) yield {
-      basicProfile
-    }
-    Future.successful(result.headOption)
   }
 
   private def findProfile(p: BasicProfile) = {
-    users.find {
-      case (key, value) if value.identities.exists(su => su.providerId == p.providerId && su.userId == p.userId) => true
-      case _ => false
+    DB.withConnection { implicit connection =>
+	  var basicProfile = SQL("SELECT * FROM player p WHERE p.id = {id};").on("id" -> p.userId).as(parser.singleOpt)
+	  basicProfile match {
+	    case Some(user) => Player(user, List())
+	    case _ => None
+	  }
     }
   }
 
-  private def updateProfile(user: BasicProfile, entry: ((String, String), Player)): Future[Player] = {
-    val identities = entry._2.identities
-    val updatedList = identities.patch(identities.indexWhere(i => i.providerId == user.providerId && i.userId == user.userId), Seq(user), 1)
-    val updatedPlayer = entry._2.copy(identities = updatedList)
-    users = users + (entry._1 -> updatedPlayer)
-    Future.successful(updatedPlayer)
+  /**
+   * Update the profile
+   */
+  private def updateProfile(user: BasicProfile, entry: Player): Future[Player] = {
+    // @TODO: Change to update only the necessary fields
+  	// Save user in DB
+    DB.withConnection { implicit connection =>
+      SQL("""
+        UPDATE player 
+        SET name = {name}, image_url = {imageUrl} 
+        WHERE id = {id}
+      """).on('name -> entry.main.fullName.get, 'imageUrl -> entry.main.avatarUrl.get, 'id -> entry.main.userId)
+      	  .executeUpdate()
+    }
+    
+    Future.successful(entry)
   }
 
   def save(user: BasicProfile, mode: SaveMode): Future[Player] = {
     mode match {
       case SaveMode.SignUp =>
+      	// Save user in DB
+        DB.withConnection { implicit connection =>
+          SQL("""
+            INSERT INTO player (id, name, image_url) 
+            VALUES ({id}, {name}, {imageUrl})
+          """).on('id -> user.userId, 'name -> user.fullName, 'imageUrl -> user.avatarUrl)
+          	  .executeUpdate()
+        }
+        
+        // Keep it in memory
         val newPlayer = Player(user, List(user))
-//        user.
-        logger.debug(s"User: $user")
-        logger.debug(s"newPlayer: $newPlayer")
-//        DB.withConnection {
-//          var result: Boolean = SQL(
-//              """
-//              INSERT INTO player (id, name, image_url) VALUES ({id}, {name}, {image_url})
-//              """
-//          )
-//        }
-        users = users + ((user.providerId, user.userId) -> newPlayer)
         Future.successful(newPlayer)
       case SaveMode.LoggedIn =>
         // first see if there is a user with this BasicProfile already.
         findProfile(user) match {
-          case Some(existingPlayer) =>
+          case existingPlayer: Player =>
+            // When the user logs back in
             updateProfile(user, existingPlayer)
-
+            Future.successful(existingPlayer)
           case None =>
             val newPlayer = Player(user, List(user))
-            users = users + ((user.providerId, user.userId) -> newPlayer)
             Future.successful(newPlayer)
         }
     }
   }
 
   def link(current: Player, to: BasicProfile): Future[Player] = {
-    if (current.identities.exists(i => i.providerId == to.providerId && i.userId == to.userId)) {
-      Future.successful(current)
-    } else {
-      val added = to :: current.identities
-      val updatedPlayer = current.copy(identities = added)
-      users = users + ((current.main.providerId, current.main.userId) -> updatedPlayer)
-      Future.successful(updatedPlayer)
-    }
+    // We don't allow linking to other social networks
+    Future.successful(current)
+    
+//    if (current.identities.exists(i => i.providerId == to.providerId && i.userId == to.userId)) {
+//      Future.successful(current)
+//    } else {
+//      val added = to :: current.identities
+//      val updatedPlayer = current.copy(identities = added)
+//      users = users + ((current.main.providerId, current.main.userId) -> updatedPlayer)
+//      Future.successful(updatedPlayer)
+//    }
   }
   
   override def findByEmailAndProvider(email: String, providerId: String): Future[Option[BasicProfile]] = ???
