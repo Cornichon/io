@@ -14,14 +14,15 @@
  * limitations under the License.
  *
  */
-package securesocial.core.providers
+package providers
 
-import securesocial.core._
+import TwitterPlayerProvider._
 import play.api.libs.oauth.{ RequestToken, OAuthCalculator }
 import play.api.Logger
-import TwitterPlayerProvider._
 import scala.concurrent.{ ExecutionContext, Future }
+import securesocial.core._
 import securesocial.core.services.{ RoutesService, CacheService, HttpService }
+import securesocial.core.providers._
 
 /**
  * A Twitter Provider
@@ -35,7 +36,7 @@ class TwitterPlayerProvider(
   client
 ) {
   override val id = TwitterPlayerProvider.Twitter
-  
+
   override def fillProfile(info: OAuth1Info): Future[BasicProfile] = {
     client.retrieveProfile(TwitterPlayerProvider.VerifyCredentials, info).map { me =>
       val userId = (me \ Id).as[String]

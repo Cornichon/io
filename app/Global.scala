@@ -19,10 +19,12 @@
  */
 import java.lang.reflect.Constructor
 import securesocial.core.RuntimeEnvironment
-import services.{ PlayerService, AuthEventListener, AuthRoutesService, InMemoryPlayerService }
+import services.{ PlayerService, AuthEventListener, AuthRoutesService }
 import models.Player
 import scala.collection.immutable.ListMap
 import securesocial.core.providers._
+import providers._
+import play.api.cache.Cache
 
 object Global extends play.api.GlobalSettings {
 
@@ -32,7 +34,7 @@ object Global extends play.api.GlobalSettings {
   object MyRuntimeEnvironment extends RuntimeEnvironment.Default[Player] {
     override implicit val executionContext = play.api.libs.concurrent.Execution.defaultContext
     override lazy val routes = new AuthRoutesService()
-    override lazy val userService: InMemoryPlayerService = new InMemoryPlayerService()
+    override lazy val userService: PlayerService = new PlayerService()
     override lazy val eventListeners = List(new AuthEventListener())
     
     override lazy val providers = ListMap(

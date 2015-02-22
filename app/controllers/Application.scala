@@ -12,6 +12,7 @@ class Application(override implicit val env: RuntimeEnvironment[Player]) extends
     request.user map(_.main.userId) match {
       case None => Ok("No ID")
       case Some(id: String) => Ok(s"Your ID is $id")   
+      
     }
   }
 

@@ -1,4 +1,4 @@
-name := """cornichon-io"""
+name := "cornichon-io"
 
 version := "1.0.0"
 
@@ -15,7 +15,7 @@ libraryDependencies ++= Seq(
   anorm,
   cache,
   ws,
+  "com.github.mumoshu" %% "play2-memcached" % "0.6.0",
   "mysql" % "mysql-connector-java" % "5.1.34",
-  "ws.securesocial" %% "securesocial" % "master-SNAPSHOT",
-  "com.github.mumoshu" %% "play2-memcached" % "0.6.0"
+  "ws.securesocial" %% "securesocial" % "master-SNAPSHOT"
 )
